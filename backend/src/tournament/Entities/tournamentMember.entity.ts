@@ -5,9 +5,13 @@ import {
   Column,
   CreateDateColumn,
   Unique,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { InvitationStatus, MemberRole } from '../../common/TournamentMember.enum';
 import { CourtPosition, PickleballSkill, PlayingHand } from '../../common/player-skill.enum';
+import { Tournament } from './tounament.entity';
+import { User } from '../../user/Entities/user.entity';
 
 @Entity('tournament_members')
 @Unique(['tournamentId', 'userId'])
@@ -33,7 +37,7 @@ export class TournamentMember {
   @Column({ type: 'enum', enum: CourtPosition, nullable: true })
   preferredPosition: CourtPosition | null;
 
-  @Column({type: 'jsonb', default: () => "'[]'::jsonb'" })
+  @Column({type: 'jsonb', default: () => "'[]'::jsonb" })
   skills: PickleballSkill[];
 
   @Column({ type: 'boolean', default: false })
@@ -44,11 +48,19 @@ export class TournamentMember {
     enum: InvitationStatus,
     default: InvitationStatus.PENDING,
   })
-  invitationStatus: InvitationStatus; // trạng thái của thư mời
+  invitationStatus: InvitationStatus;
 
   @Column({ type: 'timestamptz', nullable: true })
   respondedAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @ManyToOne(() => Tournament) 
+  @JoinColumn({ name: 'tournamentId' })
+  tournament: Tournament;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'userId' })
+  user: User;
 }
