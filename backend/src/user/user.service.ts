@@ -1,4 +1,3 @@
-
 import {
   Injectable,
   NotFoundException,
@@ -54,16 +53,12 @@ export class UserService {
     }
 
     Object.assign(user, dto);
-
     const savedUser = await this.userRepository.save(user);
 
     return this.toProfileResponse(savedUser);
   }
 
-  async updatePlayerSkills(
-    userId: string,
-    dto: UpdatePlayerSkillsDto,
-  ) {
+  async updatePlayerSkills(userId: string, dto: UpdatePlayerSkillsDto) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
     });
@@ -73,7 +68,6 @@ export class UserService {
     }
 
     Object.assign(user, dto);
-
     const savedUser = await this.userRepository.save(user);
 
     return this.toProfileResponse(savedUser);
@@ -82,7 +76,11 @@ export class UserService {
   async getMyInvitations(userId: string) {
     return this.memberRepository.find({
       where: { userId },
-      order: { createdAt: 'DESC' },
+      relations: 
+      {
+        tournament: true,
+      },
+      order: { createdAt: 'DESC' }, 
     });
   }
 
@@ -99,8 +97,8 @@ export class UserService {
       preferredPosition: user.preferredPosition,
       skills: user.skills,
       bio: user.bio,
-      createAt: user.createAt,
-      UpdateAt: user.UpdateAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
   }
 }

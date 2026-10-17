@@ -1,56 +1,52 @@
-
 import {
   Controller,
   Get,
   Patch,
   Body,
-  Req,
   UseGuards,
+  Request as Req,
 } from '@nestjs/common';
-import { Request } from 'express';
-
 import { UserService } from './user.service';
+import { UpdateUserProfileDto } from './Dtos/update-user-profile.dto';
 import { UpdatePlayerSkillsDto } from './Dtos/update-player-skills.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { UpdateUserProfileDto } from './Dtos/update-user-profile.dto';
+import { Request } from 'express';
 
-interface AuthenticatedRequest extends Request {
+export interface AuthRequest extends Request {
   user: {
-    userId: string;
+    id: string;
+    role: string;
   };
 }
 
 @Controller('users')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard) // Bắt buộc đăng nhập cho mọi endpoint của user
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Get('me')
-  getProfile(@Req() req: AuthenticatedRequest) {
-    return this.userService.getProfile(req.user.userId);
+  @Get('profile')
+  getProfile(@Req() req: AuthRequest) {
+    return this.userService.getProfile(req.user.id);
   }
 
-  @Patch('me')
+  @Patch('profile')
   updateProfile(
-    @Req() req: AuthenticatedRequest,
+    @Req() req: AuthRequest,
     @Body() dto: UpdateUserProfileDto,
   ) {
-    return this.userService.updateProfile(req.user.userId, dto);
+    return this.userService.updateProfile(req.user.id, dto);
   }
 
-  @Patch('me/skills')
-  updatePlayerSkills(
-    @Req() req: AuthenticatedRequest,
+  @Patch('skills')
+  updateSkills(
+    @Req() req: AuthRequest,
     @Body() dto: UpdatePlayerSkillsDto,
   ) {
-    return this.userService.updatePlayerSkills(
-      req.user.userId,
-      dto,
-    );
+    return this.userService.updatePlayerSkills(req.user.id, dto);
   }
 
-  @Get('me/invitations')
-  getMyInvitations(@Req() req: AuthenticatedRequest) {
-    return this.userService.getMyInvitations(req.user.userId);
+  @Get('invitations')
+  getMyInvitations(@Req() req: AuthRequest) {
+    return this.userService.getMyInvitations(req.user.id);
   }
 }

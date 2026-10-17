@@ -1,4 +1,3 @@
-
 import {
     Column,
     CreateDateColumn,
@@ -9,7 +8,6 @@ import {
 
 import { UserRole } from '../../common/User.enum';
 import { PickleballSkill, PlayingHand, PreferredPosition } from '../../common/player-skill.enum';
-import { ColdObservable } from 'rxjs/internal/testing/ColdObservable';
 
 @Entity('users')
 export class User {
@@ -20,7 +18,7 @@ export class User {
     fullName: string;
 
     @Column({ type: 'varchar', unique: true, length: 120 })
-    email: string;
+    email: string; 
 
     @Column({
         type: 'enum',
@@ -29,8 +27,8 @@ export class User {
     })
     role: UserRole;
 
-    @Column({type: 'varchar', length: 255, select: false})
-    passwordhash: string;
+    @Column({ type: 'varchar', length: 255, select: false })
+    passwordHash: string; // Sửa thành camelCase
 
     @Column({ type: 'varchar', length: 20, nullable: true })
     phone: string | null;
@@ -44,7 +42,6 @@ export class User {
     @Column({ type: 'enum', enum: PreferredPosition, nullable: true })
     preferredPosition: PreferredPosition | null;
 
-
     @Column({
         type: 'decimal',
         precision: 2,
@@ -57,7 +54,6 @@ export class User {
     })
     level: number;
 
-
     @Column({
         type: 'jsonb',
         default: () => "'[]'::jsonb",
@@ -68,8 +64,8 @@ export class User {
     bio: string | null;
 
     @CreateDateColumn({ type: 'timestamptz' })
-    createAt: Date;
+    createdAt: Date;
 
     @UpdateDateColumn({ type: 'timestamptz' })
-    UpdateAt: Date;
+    updatedAt: Date;
 }
