@@ -10,6 +10,9 @@ export class TeamMember
     @Column({type: 'uuid'})
     teamId: string;
 
-    @Column({type: 'uuid'})
-    userId: string;
+    @Column({ type: 'uuid', nullable: true })
+    userId: string | null;
+
+    @Column({ type: 'uuid', nullable: true })
+    tournamentMemberId: string | null;
 }

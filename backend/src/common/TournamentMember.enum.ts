@@ -9,3 +9,9 @@ export enum InvitationStatus {
     ACCEPTED = 'ACCEPTED',
     DECLINED = 'DECLINED',
 }
+
+export enum OrganizerApprovalStatus {
+    PENDING = 'PENDING',
+    APPROVED = 'APPROVED',
+    REJECTED = 'REJECTED',
+}

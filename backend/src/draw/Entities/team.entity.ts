@@ -9,6 +9,4 @@ export class Team {
   groupId: string | null;
   @Column({ length: 100 }) 
   name: string;
-//   @Column({ type: 'int' }) 
-//   seed: number;
 }

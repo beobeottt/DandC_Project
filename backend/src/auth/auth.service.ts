@@ -38,11 +38,16 @@ export class AuthService {
     return null;
   }
 
-  async login(user: any) {
-
+  async login(user: Pick<User, 'id' | 'email' | 'fullName' | 'role'>) {
     const payload = { username: user.email, sub: user.id, role: user.role };
     return {
       access_token: this.jwtService.sign(payload),
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+      },
     };
   }
 
@@ -62,18 +67,17 @@ export class AuthService {
       email: dto.email,
       passwordHash: hashedPassword,
       fullName: dto.fullName,
-      role: dto.role || UserRole.PLAYER,
+      role: UserRole.PLAYER,
     });
 
     const savedUser = await this.usersRepository.save(newUser);
 
     const { passwordHash: _hash, ...result } = savedUser;
     
-    const payload = { id: savedUser.id, role: savedUser.role };
+    const payload = { username: savedUser.email, sub: savedUser.id, role: savedUser.role };
     return {
       user: result,
       access_token: this.jwtService.sign(payload),
     };
   }
 }
-

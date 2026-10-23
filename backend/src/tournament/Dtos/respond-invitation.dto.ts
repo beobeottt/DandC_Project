@@ -1,13 +1,10 @@
-import { IsArray, IsEnum, IsOptional, IsUUID } from "class-validator";
+import { IsArray, IsEnum, IsOptional } from "class-validator";
 import { InvitationStatus } from "../../common/TournamentMember.enum";
 import { PickleballSkill, PlayingHand, PreferredPosition } from "../../common/player-skill.enum";
 
 
 export class RespondInvitationDto
 {
-    @IsUUID()
-    userId: string;
-
     @IsEnum(InvitationStatus)
     status: InvitationStatus;
 

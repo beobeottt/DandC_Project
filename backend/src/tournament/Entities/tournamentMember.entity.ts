@@ -8,7 +8,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { InvitationStatus, MemberRole } from '../../common/TournamentMember.enum';
+import { InvitationStatus, MemberRole, OrganizerApprovalStatus } from '../../common/TournamentMember.enum';
 import { CourtPosition, PickleballSkill, PlayingHand } from '../../common/player-skill.enum';
 import { Tournament } from './tounament.entity';
 import { User } from '../../user/Entities/user.entity';
@@ -22,8 +22,17 @@ export class TournamentMember {
   @Column({ type: 'uuid' })
   tournamentId: string;
 
-  @Column({ type: 'uuid' })
-  userId: string;
+  @Column({ type: 'uuid', nullable: true })
+  userId: string | null;
+
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  guestFullName: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  guestPhone: string | null;
+
+  @Column({ type: 'enum', enum: OrganizerApprovalStatus, default: OrganizerApprovalStatus.PENDING })
+  organizerApprovalStatus: OrganizerApprovalStatus;
 
   @Column({ type: 'enum', enum: MemberRole })
   role: MemberRole;
@@ -60,7 +69,7 @@ export class TournamentMember {
   @JoinColumn({ name: 'tournamentId' })
   tournament: Tournament;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'userId' })
-  user: User;
+  user: User | null;
 }

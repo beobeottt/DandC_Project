@@ -4,8 +4,10 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
-import { CompetitionType, TournamentFormat, TournamentStatus } from '../../common/Tournament.enum';
+import { CompetitionType, TournamentStatus } from '../../common/Tournament.enum';
+import { TournamentFormatDetail } from './tournament-format-detail.entity';
 
 @Entity('tournaments')
 export class Tournament {
@@ -21,43 +23,38 @@ export class Tournament {
   @Column({ type: 'timestamptz' })
   startAt: Date;
 
-  @Column({ type: 'enum', enum: TournamentFormat })
-  format: TournamentFormat;
-
   @Column({
     type: 'enum',
     enum: CompetitionType,
     default: CompetitionType.DIRECT,
   })
-  competition_Type: CompetitionType; // Tính điểm trực tiếp hoặc như luật cũ
+  competition_Type: CompetitionType;
 
   @Column({ default: 'ROUND_ROBIN' })
-  bracket_Type: string; // hình thức thi đấu
+  bracket_Type: string;
 
   @Column({ type: 'int', default: 80 })
-  confirmation_Threshold: number; // tỉ lệ người checkin giải đấu -> tiến hành phân đội
+  confirmation_Threshold: number;
 
   @Column({
     type: 'enum',
     enum: TournamentStatus,
     default: TournamentStatus.DRAFT,
   })
-  status: TournamentStatus; // tình hình của giải đấu
+  status: TournamentStatus;
 
   @Column({ type: 'uuid' })
   organizerId: string;
 
-  @Column({type: 'boolean', default: false})
+  @Column({ type: 'boolean', default: false })
   drawLocked: boolean;
 
-  @Column({type: 'int', default: 2})
-  playersPerTeam: number;
-
-  @Column({type: 'int', default: 1})
-  menPerTeam: number;
-
-  @Column({type: 'int', default: 1})
-  womenPerTeam: number;
+  // Quan hệ 1-Nhiều: Một giải đấu có thể có nhiều nội dung thi đấu kèm cấu hình riêng
+  @OneToMany(() => TournamentFormatDetail, (detail) => detail.tournament, {
+    cascade: true, // Khi tạo Tournament, tự động lưu luôn các format detail đi kèm
+    eager: true,   // Tự động load luôn chi tiết format khi gọi findOne/find
+  })
+  formatDetails: TournamentFormatDetail[];
 
   @CreateDateColumn()
   createdAt: Date;

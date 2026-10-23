@@ -20,13 +20,14 @@ export interface AuthRequest extends Request {
 }
 
 @Controller('users')
-@UseGuards(JwtAuthGuard) // Bắt buộc đăng nhập cho mọi endpoint của user
+@UseGuards(JwtAuthGuard)
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  @UseGuards(JwtAuthGuard)
   @Get('profile')
   getProfile(@Req() req: AuthRequest) {
-    return this.userService.getProfile(req.user.id);
+    return this.userService.getProfile(req.user?.id || (req as any)?.sub);
   }
 
   @Patch('profile')
@@ -34,7 +35,7 @@ export class UserController {
     @Req() req: AuthRequest,
     @Body() dto: UpdateUserProfileDto,
   ) {
-    return this.userService.updateProfile(req.user.id, dto);
+    return this.userService.updateProfile(req.user?.id || (req as any)?.sub, dto);
   }
 
   @Patch('skills')
@@ -42,11 +43,11 @@ export class UserController {
     @Req() req: AuthRequest,
     @Body() dto: UpdatePlayerSkillsDto,
   ) {
-    return this.userService.updatePlayerSkills(req.user.id, dto);
+    return this.userService.updatePlayerSkills(req.user?.id || (req as any)?.sub, dto);
   }
 
   @Get('invitations')
   getMyInvitations(@Req() req: AuthRequest) {
-    return this.userService.getMyInvitations(req.user.id);
+    return this.userService.getMyInvitations(req.user?.id || (req as any)?.sub);
   }
 }

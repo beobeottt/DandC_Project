@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -22,6 +23,10 @@ export class UserService {
   ) {}
 
   async getProfile(userId: string) {
+
+    if(!userId) {
+      throw new BadRequestException('User ID is required');
+    }
     const user = await this.userRepository.findOne({
       where: { id: userId },
     });

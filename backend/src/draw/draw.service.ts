@@ -10,7 +10,7 @@ import { TournamentGroup } from './Entities/group.entity';
 import { Tournament } from '../tournament/Entities/tounament.entity';
 import { TournamentMember } from '../tournament/Entities/tournamentMember.entity';
 import { User } from '../user/Entities/user.entity';
-import { InvitationStatus, MemberRole } from '../common/TournamentMember.enum';
+import { InvitationStatus, MemberRole, OrganizerApprovalStatus } from '../common/TournamentMember.enum';
 
 @Injectable()
 export class DrawService {
@@ -43,6 +43,7 @@ export class DrawService {
         tournamentId,
         role: MemberRole.PLAYER,
         invitationStatus: InvitationStatus.ACCEPTED,
+        organizerApprovalStatus: OrganizerApprovalStatus.APPROVED,
       },
     });
 
@@ -52,6 +53,9 @@ export class DrawService {
 
     const malePlayers = players.filter(p => p.gender?.toLowerCase() === 'nam' || p.gender?.toLowerCase() === 'male');
     const femalePlayers = players.filter(p => p.gender?.toLowerCase() === 'nữ' || p.gender?.toLowerCase() === 'female');
+    const unclassifiedPlayers = players.filter(p =>
+      !malePlayers.includes(p) && !femalePlayers.includes(p),
+    );
 
     const shuffleArray = (array: any[]) => {
       for (let i = array.length - 1; i > 0; i--) {
@@ -62,12 +66,14 @@ export class DrawService {
     
     shuffleArray(malePlayers);
     shuffleArray(femalePlayers);
+    shuffleArray(unclassifiedPlayers);
 
     const playersPerGroup = playersPerTeam * teamsPerGroup;
     const numberOfGroups = Math.ceil(players.length / playersPerGroup);
 
     let maleIndex = 0;
     let femaleIndex = 0;
+    let unclassifiedIndex = 0;
     let globalTeamCount = 0;
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
@@ -77,7 +83,11 @@ export class DrawService {
       );
 
       for (let t = 0; t < teamsPerGroup; t++) {
-        if (maleIndex >= malePlayers.length && femaleIndex >= femalePlayers.length) break;
+        if (
+          maleIndex >= malePlayers.length &&
+          femaleIndex >= femalePlayers.length &&
+          unclassifiedIndex >= unclassifiedPlayers.length
+        ) break;
 
         const letter = alphabet[globalTeamCount % 26];
         const suffix = Math.floor(globalTeamCount / 26) > 0 ? Math.floor(globalTeamCount / 26) : '';
@@ -87,25 +97,54 @@ export class DrawService {
         );
         globalTeamCount++;
 
-        const teamMembersToSave = [];
+        const teamMembersToSave: TeamMember[] = [];
 
         for (let m = 0; m < malesPerTeam; m++) {
           if (maleIndex < malePlayers.length) {
 
-            teamMembersToSave.push(
-              this.teamMemberRepository.create({ teamId: newTeam.id, userId: malePlayers[maleIndex].userId })
-            );
+            const player = malePlayers[maleIndex];
+            teamMembersToSave.push(this.teamMemberRepository.create({
+              teamId: newTeam.id,
+              userId: player.userId,
+              tournamentMemberId: player.id,
+            }));
             maleIndex++;
           }
         }
 
         for (let f = 0; f < femalesPerTeam; f++) {
           if (femaleIndex < femalePlayers.length) {
-            teamMembersToSave.push(
-              this.teamMemberRepository.create({ teamId: newTeam.id, userId: femalePlayers[femaleIndex].userId })
-            );
+            const player = femalePlayers[femaleIndex];
+            teamMembersToSave.push(this.teamMemberRepository.create({
+              teamId: newTeam.id,
+              userId: player.userId,
+              tournamentMemberId: player.id,
+            }));
             femaleIndex++;
           }
+        }
+
+        while (teamMembersToSave.length < playersPerTeam && unclassifiedIndex < unclassifiedPlayers.length) {
+          const player = unclassifiedPlayers[unclassifiedIndex++];
+          teamMembersToSave.push(this.teamMemberRepository.create({
+            teamId: newTeam.id,
+            userId: player.userId,
+            tournamentMemberId: player.id,
+          }));
+        }
+
+        while (
+          teamMembersToSave.length < playersPerTeam &&
+          (maleIndex < malePlayers.length || femaleIndex < femalePlayers.length)
+        ) {
+          const player = maleIndex < malePlayers.length
+            ? malePlayers[maleIndex++]
+            : femalePlayers[femaleIndex++];
+          teamMembersToSave.push(this.teamMemberRepository.create({
+            teamId: newTeam.id,
+            userId: player.userId,
+            tournamentMemberId: player.id,
+          }));
         }
 
         if (teamMembersToSave.length > 0) {
@@ -179,13 +218,14 @@ export class DrawService {
     const teamIds = teams.map(t => t.id);
     let teamMembers: TeamMember[] = [];
     let users: User[] = [];
+    let tournamentMembers: TournamentMember[] = [];
 
     if (teamIds.length > 0) {
       teamMembers = await this.teamMemberRepository.find({
         where: { teamId: In(teamIds) }
       });
 
-      const userIds = teamMembers.map(tm => tm.userId);
+      const userIds = teamMembers.map(tm => tm.userId).filter((id): id is string => id !== null);
       if (userIds.length > 0) {
         users = await this.userRepository.find({
           where: { id: In(userIds) },
@@ -194,6 +234,15 @@ export class DrawService {
             fullName: true,
             avatarUrl: true
           } 
+        });
+      }
+      const tournamentMemberIds = teamMembers
+        .map(tm => tm.tournamentMemberId)
+        .filter((id): id is string => id !== null);
+      if (tournamentMemberIds.length > 0) {
+        tournamentMembers = await this.tournamentMemberRepository.find({
+          where: { id: In(tournamentMemberIds) },
+          relations: { user: true },
         });
       }
     }
@@ -205,11 +254,12 @@ export class DrawService {
           const membersOfTeam = teamMembers
             .filter(tm => tm.teamId === team.id)
             .map(tm => {
+              const tournamentMember = tournamentMembers.find(member => member.id === tm.tournamentMemberId);
               const userInfo = users.find(u => u.id === tm.userId);
               return {
                 userId: tm.userId,
-                fullName: userInfo?.fullName || 'Unknown Player',
-                avatarUrl: userInfo?.avatarUrl || null,
+                fullName: tournamentMember?.guestFullName || tournamentMember?.user?.fullName || userInfo?.fullName || 'Unknown Player',
+                avatarUrl: tournamentMember?.user?.avatarUrl || userInfo?.avatarUrl || null,
               };
             });
 
