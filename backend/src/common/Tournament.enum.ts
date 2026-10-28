@@ -7,12 +7,33 @@ export enum TournamentStatus {
   CANCELLED = 'CANCELLED',
 }
 
+export enum TournamentApprovalStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
 export enum TournamentFormat {
-    SINGLES = 'SINGLES',
+  SINGLES = 'SINGLES',
   MIXEDDOUBLES = 'MIXDOUBLES',
   MENDOUBLES = 'MENDOUBLES',
   WOMENDOUBLES = 'WOMENDOUBLES',
   MLP = 'MLP',
+  RRB_MEN_WOMEN = 'RRB_MEN_WOMEN',
+  RRB_WOMEN_DOUBLES = 'RRB_WOMEN_DOUBLES',
+  RRB_MEN_DOUBLES = 'RRB_MEN_DOUBLES',
+  RRB_ROTATING_WOMEN = 'RRB_ROTATING_WOMEN',
+  RRB_ROTATING_MEN = 'RRB_ROTATING_MEN',
+  MLP_DREAMBREAK = 'MLP_DREAMBREAK',
+  MLP_RELAY = 'MLP_RELAY',
+  MEN_SINGLES = 'MEN_SINGLES',
+  WOMEN_SINGLES = 'WOMEN_SINGLES',
+}
+
+export enum TournamentAwardType {
+  CUP = 'CUP',
+  CASH = 'CASH',
+  GIFT = 'GIFT',
 }
 
 export enum CompetitionType {

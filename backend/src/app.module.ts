@@ -9,6 +9,7 @@ import { TournamentModule } from './tournament/tournament.module';
 import { UserModule } from './user/user.module';
 import { DrawModule } from './draw/draw.module';
 import { AuthModule } from './auth/auth.module';
+import { PracticeModule } from './practice/practice.module';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -35,6 +36,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     UserModule,
     DrawModule,
     AuthModule,
+    PracticeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -3,11 +3,11 @@ import { IsInt, Min } from "class-validator";
 export class GenerateDrawDto
 {
     @IsInt()
-    @Min(1)
+    @Min(0)
     malesPerTeam: number;
 
     @IsInt()
-    @Min(1)
+    @Min(0)
     femalesPerTeam: number;
 
     @IsInt()

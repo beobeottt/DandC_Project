@@ -47,7 +47,7 @@ export class DrawController {
   
   // Dành cho Vận động viên
   @Get(':tournamentId/my-result')
-  @Roles(UserRole.PLAYER)
+  @Roles(UserRole.PLAYER, UserRole.ADMIN)
   getMyResult(
     @Req() req: AuthRequest,
     @Param('tournamentId') tournamentId: string, 
@@ -57,7 +57,7 @@ export class DrawController {
 
   // Dành cho Người tổ chức & Trọng tài
   @Get(':tournamentId/overall')
-  @Roles(UserRole.ORGANIZER, UserRole.REFEREE)
+  @Roles(UserRole.ORGANIZER, UserRole.REFEREE, UserRole.ADMIN, UserRole.PLAYER)
   getOverallResults(
     @Param('tournamentId') tournamentId: string
   ) {
@@ -69,7 +69,7 @@ export class DrawController {
   // ==========================================
   @Patch(':tournamentId/confirm-result')
   // Cả 3 role đều có nút "Xác nhận thông tin" ở màn hình cuối
-  @Roles(UserRole.PLAYER, UserRole.ORGANIZER, UserRole.REFEREE) 
+  @Roles(UserRole.PLAYER, UserRole.ORGANIZER, UserRole.REFEREE, UserRole.ADMIN)
   confirmResult(
     @Req() req: AuthRequest,
     @Param('tournamentId') tournamentId: string, 

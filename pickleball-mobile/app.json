@@ -23,7 +23,13 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Cho phép Pickleball truy cập ảnh để chọn ảnh bìa giải đấu.",
+          "cameraPermission": false
+        }
+      ]
     ]
   }
 }

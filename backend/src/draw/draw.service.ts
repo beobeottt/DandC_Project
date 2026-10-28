@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GenerateDrawDto } from './Dtos/generate-draw.dto';
@@ -6,11 +6,13 @@ import { DrawGateway } from './draw.gateway';
 import { In } from 'typeorm';
 import { Team } from './Entities/team.entity';
 import { TeamMember } from './Entities/teamMember.entity';
+import { Match } from './Entities/match.entity';
 import { TournamentGroup } from './Entities/group.entity';
 import { Tournament } from '../tournament/Entities/tounament.entity';
 import { TournamentMember } from '../tournament/Entities/tournamentMember.entity';
 import { User } from '../user/Entities/user.entity';
 import { InvitationStatus, MemberRole, OrganizerApprovalStatus } from '../common/TournamentMember.enum';
+import { TournamentApprovalStatus } from '../common/Tournament.enum';
 
 @Injectable()
 export class DrawService {
@@ -21,6 +23,7 @@ export class DrawService {
     @InjectRepository(TournamentMember) private readonly tournamentMemberRepository: Repository<TournamentMember>,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
     @InjectRepository(TeamMember) private readonly teamMemberRepository: Repository<TeamMember>,
+    @InjectRepository(Match) private readonly matchRepository: Repository<Match>,
     private readonly drawGateway: DrawGateway,
   ) {}
 
@@ -28,14 +31,26 @@ export class DrawService {
     const { malesPerTeam, femalesPerTeam, teamsPerGroup } = dto;
     const playersPerTeam = malesPerTeam + femalesPerTeam;
 
-    if (playersPerTeam === 0) {
+    if (playersPerTeam <= 0) {
       throw new BadRequestException('Một đội phải có ít nhất 1 thành viên');
     }
 
     const tournament = await this.tournamentRepository.findOne({ where: { id: tournamentId } });
-    if (!tournament || tournament.organizerId !== organizerId) {
+    if (!tournament) {
       throw new BadRequestException('Giải đấu không hợp lệ hoặc bạn không có quyền');
     }
+    if (tournament.organizerId !== organizerId) {
+      throw new ForbiddenException('Bạn không có quyền bốc thăm giải đấu này');
+    }
+    if (tournament.drawLocked) {
+      throw new BadRequestException('Giải đấu đã được bốc thăm');
+    }
+    if (tournament.approvalStatus !== TournamentApprovalStatus.APPROVED) {
+      throw new ForbiddenException('Giải đấu cần được admin duyệt trước khi bốc thăm');
+    }
+    const allPlayers = await this.tournamentMemberRepository.find({
+      where: { tournamentId, role: MemberRole.PLAYER },
+    });
 
     // Đã đổi thành this.tournamentMemberRepository
     const players = await this.tournamentMemberRepository.find({
@@ -49,6 +64,14 @@ export class DrawService {
 
     if (players.length === 0) {
       throw new BadRequestException('Không có vận động viên nào để bốc thăm');
+    }
+    const confirmationRate = allPlayers.length
+      ? Math.floor((players.length / allPlayers.length) * 100)
+      : 0;
+    if (confirmationRate < tournament.confirmation_Threshold) {
+      throw new BadRequestException(
+        `Chỉ bốc thăm khi tỷ lệ VĐV đã xác nhận và được duyệt đạt ${tournament.confirmation_Threshold}% (hiện tại ${confirmationRate}%)`,
+      );
     }
 
     const malePlayers = players.filter(p => p.gender?.toLowerCase() === 'nam' || p.gender?.toLowerCase() === 'male');
@@ -79,7 +102,11 @@ export class DrawService {
 
     for (let g = 0; g < numberOfGroups; g++) {
       const group = await this.groupRepository.save(
-        this.groupRepository.create({ tournamentId, name: `Bảng ${g + 1}`, position: g + 1 })
+        this.groupRepository.create({
+          tournamentId,
+          name: tournament.bracket_Type === 'SINGLE_ELIMINATION' ? `Nhánh ${g + 1}` : `Bảng ${g + 1}`,
+          position: g + 1,
+        })
       );
 
       for (let t = 0; t < teamsPerGroup; t++) {
@@ -154,6 +181,82 @@ export class DrawService {
       }
     }
 
+    const createdGroups = await this.groupRepository.find({
+      where: { tournamentId },
+      order: { position: 'ASC' },
+    });
+    const createdTeams = await this.teamRepository.find({ where: { tournamentId } });
+    const fixtures: Match[] = [];
+    for (const group of createdGroups) {
+      const groupTeams = createdTeams.filter(team => team.groupId === group.id);
+      if (tournament.bracket_Type === 'SINGLE_ELIMINATION') {
+        if (groupTeams.length < 2) continue;
+        const rounds = Math.ceil(Math.log2(groupTeams.length));
+        const bracketSize = 2 ** rounds;
+        const stages: Array<Array<{ groupId: string; round: number; matchNumber: number; teamAId: string | null; teamBId: string | null }>> = [];
+        for (let round = 1; round <= rounds; round++) {
+          const matchCount = bracketSize / (2 ** round);
+          stages.push(Array.from({ length: matchCount }, (_, index) => ({
+            groupId: group.id,
+            round,
+            matchNumber: index + 1,
+            teamAId: round === 1 ? groupTeams[index * 2]?.id ?? null : null,
+            teamBId: round === 1 ? groupTeams[index * 2 + 1]?.id ?? null : null,
+          })));
+        }
+        for (let stageIndex = 0; stageIndex < stages.length - 1; stageIndex++) {
+          stages[stageIndex].forEach((match, index) => {
+            const advancingTeam = match.teamAId || match.teamBId;
+            if (Boolean(match.teamAId) !== Boolean(match.teamBId) && advancingTeam) {
+              const nextMatch = stages[stageIndex + 1][Math.floor(index / 2)];
+              if (index % 2 === 0) nextMatch.teamAId = advancingTeam;
+              else nextMatch.teamBId = advancingTeam;
+            }
+          });
+        }
+        stages.forEach(stage => stage.forEach(match => {
+          if (match.round > 1 || (match.teamAId && match.teamBId)) {
+            fixtures.push(this.matchRepository.create({
+              ...match,
+              tournamentId,
+              stage: 'KNOCKOUT',
+              scoreA: null,
+              scoreB: null,
+              liveStreamUrl: null,
+              status: 'SCHEDULED',
+            }));
+          }
+        }));
+      } else {
+        const rotation: Array<Team | null> = [...groupTeams];
+        if (rotation.length % 2 === 1) rotation.push(null);
+        const matchesPerRound = rotation.length / 2;
+        for (let round = 1; round < rotation.length; round++) {
+          for (let index = 0; index < matchesPerRound; index++) {
+            const teamA = rotation[index];
+            const teamB = rotation[rotation.length - 1 - index];
+            if (teamA && teamB) {
+              fixtures.push(this.matchRepository.create({
+                tournamentId,
+                groupId: group.id,
+                stage: 'GROUP',
+                teamAId: teamA.id,
+                teamBId: teamB.id,
+                round,
+                matchNumber: index + 1,
+                scoreA: null,
+                scoreB: null,
+                liveStreamUrl: null,
+                status: 'SCHEDULED',
+              }));
+            }
+          }
+          rotation.splice(1, 0, rotation.pop()!);
+        }
+      }
+    }
+    if (fixtures.length > 0) await this.matchRepository.save(fixtures);
+
     tournament.drawLocked = true;
     await this.tournamentRepository.save(tournament);
     
@@ -200,12 +303,65 @@ export class DrawService {
       if (group) groupName = group.name;
     }
 
+    const myMembers = await this.teamMemberRepository.find({
+      where: { teamId: myTeam.id },
+    });
+    const memberIds = myMembers.map(member => member.tournamentMemberId).filter((id): id is string => id !== null);
+    const tournamentMembers = memberIds.length
+      ? await this.tournamentMemberRepository.find({
+          where: { id: In(memberIds) },
+          relations: { user: true },
+        })
+      : [];
+
+    const member = tournamentMembers.find(item => item.userId === userId);
+    const userIds = myMembers.map(item => item.userId).filter((id): id is string => id !== null);
+    const users = userIds.length
+      ? await this.userRepository.find({
+          where: { id: In(userIds) },
+          select: { id: true, fullName: true, avatarUrl: true },
+        })
+      : [];
+    const teamMatches = await this.matchRepository.find({
+      where: { tournamentId },
+      order: { round: 'ASC', matchNumber: 'ASC' },
+    });
+    const opponentIds = teamMatches
+      .filter(match => match.teamAId === myTeam.id || match.teamBId === myTeam.id)
+      .map(match => match.teamAId === myTeam.id ? match.teamBId : match.teamAId)
+      .filter((id): id is string => id !== null);
+    const opponents = opponentIds.length
+      ? await this.teamRepository.find({ where: { id: In(opponentIds) } })
+      : [];
+
     return {
       teamName: myTeam.name, 
       groupName: groupName, 
+      profileConfirmed: member?.profileConfirmed ?? false,
+      members: myMembers.map(teamMember => {
+        const tournamentMember = tournamentMembers.find(item => item.id === teamMember.tournamentMemberId);
+        const user = users.find(item => item.id === teamMember.userId);
+        return {
+          fullName: tournamentMember?.guestFullName || tournamentMember?.user?.fullName || user?.fullName || 'VĐV',
+          avatarUrl: tournamentMember?.user?.avatarUrl || user?.avatarUrl || null,
+        };
+      }),
+      matches: teamMatches
+        .filter(match => match.teamAId === myTeam.id || match.teamBId === myTeam.id)
+        .map(match => ({
+          round: match.round,
+          opponent: opponents.find(team => team.id === (match.teamAId === myTeam.id ? match.teamBId : match.teamAId))?.name || 'Chờ xác định',
+          scoreA: match.scoreA,
+          scoreB: match.scoreB,
+          myScore: match.teamAId === myTeam.id ? match.scoreA : match.scoreB,
+          opponentScore: match.teamAId === myTeam.id ? match.scoreB : match.scoreA,
+          status: match.status,
+        })),
     };
   }
   async getOverallResults(tournamentId: string) {
+    const tournament = await this.tournamentRepository.findOne({ where: { id: tournamentId } });
+    if (!tournament) throw new NotFoundException('Không tìm thấy giải đấu');
     const groups = await this.groupRepository.find({ 
       where: { tournamentId },
       order: { position: 'ASC' }
@@ -213,6 +369,10 @@ export class DrawService {
 
     const teams = await this.teamRepository.find({ 
       where: { tournamentId } 
+    });
+    const matches = await this.matchRepository.find({
+      where: { tournamentId },
+      order: { round: 'ASC', matchNumber: 'ASC' },
     });
 
     const teamIds = teams.map(t => t.id);
@@ -273,11 +433,80 @@ export class DrawService {
       return {
         groupId: group.id,
         groupName: group.name,
-        teams: groupTeams
+        teams: groupTeams,
+        matches: matches
+          .filter(match => match.groupId === group.id)
+          .map(match => ({
+            id: match.id,
+            round: match.round,
+            teamA: teams.find(team => team.id === match.teamAId)?.name || 'Chờ xác định',
+            teamB: teams.find(team => team.id === match.teamBId)?.name || 'Chờ xác định',
+            scoreA: match.scoreA,
+            scoreB: match.scoreB,
+            status: match.status,
+          })),
       };
     });
 
-    return results;
+    const knockoutMatches = matches
+      .filter(match =>
+        match.stage === 'KNOCKOUT' ||
+        (tournament.bracket_Type === 'SINGLE_ELIMINATION' && match.stage === 'GROUP'),
+      )
+      .map(match => ({
+        id: match.id,
+        round: match.round,
+        matchNumber: match.matchNumber,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+        teamA: teams.find(team => team.id === match.teamAId)?.name || 'Chờ xác định',
+        teamB: teams.find(team => team.id === match.teamBId)?.name || 'Chờ xác định',
+        scoreA: match.scoreA,
+        scoreB: match.scoreB,
+        status: match.status,
+      }));
+    const finalRound = Math.max(0, ...knockoutMatches.map(match => match.round));
+    const finalMatch = knockoutMatches.find(match => match.round === finalRound && match.status === 'COMPLETED');
+    let podium: {
+      first: string | null;
+      second: string | null;
+      third: string[];
+      thirdPlacePending: boolean;
+    } = { first: null, second: null, third: [], thirdPlacePending: false };
+    if (finalMatch && finalMatch.scoreA !== null && finalMatch.scoreB !== null) {
+      podium.first = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.teamA : finalMatch.teamB;
+      podium.second = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.teamB : finalMatch.teamA;
+      const semifinalMatches = knockoutMatches.filter(match =>
+        match.round === finalRound - 1 && match.status === 'COMPLETED',
+      );
+      const semifinalLosers = semifinalMatches.map(match =>
+        match.scoreA! < match.scoreB! ? match.teamA : match.teamB,
+      );
+      const bronzeMatch = matches.find(match => match.stage === 'BRONZE');
+      if (tournament.bronzeMatchEnabled && bronzeMatch) {
+        if (bronzeMatch.status === 'COMPLETED' && bronzeMatch.scoreA !== null && bronzeMatch.scoreB !== null) {
+          const winnerId = bronzeMatch.scoreA > bronzeMatch.scoreB ? bronzeMatch.teamAId : bronzeMatch.teamBId;
+          podium.third = [
+            teams.find(team => team.id === winnerId)?.name || 'Đang cập nhật',
+          ];
+        } else {
+          podium.third = semifinalLosers;
+          podium.thirdPlacePending = true;
+        }
+      } else {
+        podium.third = semifinalLosers;
+      }
+    }
+
+    return {
+      tournamentId,
+      tournamentName: tournament.name,
+      drawFormat: tournament.bracket_Type,
+      drawLocked: tournament.drawLocked,
+      podium,
+      knockoutMatches,
+      groups: results,
+    };
   }
 
   async confirmResult(tournamentId: string, userId: string) {
@@ -287,6 +516,18 @@ export class DrawService {
 
     if (!member) {
       throw new NotFoundException('Không tìm thấy thông tin thành viên trong giải đấu này');
+    }
+    if (
+      member.role === MemberRole.PLAYER &&
+      (
+        member.invitationStatus !== InvitationStatus.ACCEPTED ||
+        member.organizerApprovalStatus !== OrganizerApprovalStatus.APPROVED
+      )
+    ) {
+      throw new BadRequestException('Chỉ VĐV đã nhận lời và được BTC duyệt mới có thể xác nhận kết quả');
+    }
+    if (member.role === MemberRole.REFEREE && member.invitationStatus !== InvitationStatus.ACCEPTED) {
+      throw new BadRequestException('Trọng tài cần nhận lời mời trước khi xác nhận');
     }
 
     member.profileConfirmed = true; 

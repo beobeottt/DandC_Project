@@ -1,4 +1,5 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from "class-validator";
+import { IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, MinLength } from "class-validator";
+import { UserRole } from "../../common/User.enum";
 
 export class RegisterDto {
     @IsEmail({}, {message: 'Invalid email format'})
@@ -11,4 +12,12 @@ export class RegisterDto {
     @IsNotEmpty()
     @IsString()
     fullName: string;
+
+    @IsOptional()
+    @IsIn([UserRole.PLAYER, UserRole.ORGANIZER])
+    requestedRole?: UserRole.PLAYER | UserRole.ORGANIZER;
+
+    @IsOptional()
+    @IsIn([UserRole.PLAYER, UserRole.ORGANIZER])
+    role?: UserRole.PLAYER | UserRole.ORGANIZER;
 }

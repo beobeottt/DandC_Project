@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -6,6 +6,7 @@ import * as bcrypt from 'bcrypt';
 import { User } from '../user/Entities/user.entity';
 import { RegisterDto } from './Dtos/register.dto';
 import { UserRole } from '../common/User.enum';
+import { OrganizerApprovalStatus } from '../common/TournamentMember.enum';
 
 
 @Injectable()
@@ -28,6 +29,8 @@ export class AuthService {
         email: true,
         fullName: true,
         role: true,
+        requestedRole: true,
+        organizerApprovalStatus: true,
         passwordHash: true,
       }
     });
@@ -38,7 +41,7 @@ export class AuthService {
     return null;
   }
 
-  async login(user: Pick<User, 'id' | 'email' | 'fullName' | 'role'>) {
+  async login(user: Pick<User, 'id' | 'email' | 'fullName' | 'role' | 'requestedRole' | 'organizerApprovalStatus'>) {
     const payload = { username: user.email, sub: user.id, role: user.role };
     return {
       access_token: this.jwtService.sign(payload),
@@ -47,13 +50,36 @@ export class AuthService {
         email: user.email,
         fullName: user.fullName,
         role: user.role,
+        requestedRole: user.requestedRole,
+        organizerApprovalStatus: user.organizerApprovalStatus,
       },
     };
   }
 
   async register(dto: RegisterDto): Promise<{ user: Omit<User, 'passwordHash'>; access_token: string }> {
+    if (
+      typeof dto.email !== 'string' ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.email.trim()) ||
+      typeof dto.password !== 'string' ||
+      dto.password.length < 6 ||
+      typeof dto.fullName !== 'string' ||
+      !dto.fullName.trim()
+    ) {
+      throw new BadRequestException('Họ tên, email hợp lệ và mật khẩu tối thiểu 6 ký tự là bắt buộc');
+    }
+    for (const role of [dto.role, dto.requestedRole]) {
+      if (
+        role !== undefined &&
+        role !== UserRole.PLAYER &&
+        role !== UserRole.ORGANIZER
+      ) {
+        throw new BadRequestException(
+          'Không thể tự đăng ký ADMIN hoặc REFEREE. ADMIN cần được tạo bởi bootstrap/admin.',
+        );
+      }
+    }
     const existingUser = await this.usersRepository.findOne({
-      where: { email: dto.email },
+      where: { email: dto.email.trim().toLowerCase() },
     });
 
     if (existingUser) {
@@ -63,11 +89,19 @@ export class AuthService {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(dto.password, saltRounds);
 
+    if (dto.role && dto.requestedRole && dto.role !== dto.requestedRole) {
+      throw new BadRequestException('Vai trò đăng ký không thống nhất');
+    }
+    const requestedRole = dto.requestedRole ?? dto.role ?? UserRole.PLAYER;
     const newUser = this.usersRepository.create({
-      email: dto.email,
+      email: dto.email.trim().toLowerCase(),
       passwordHash: hashedPassword,
-      fullName: dto.fullName,
+      fullName: dto.fullName.trim(),
       role: UserRole.PLAYER,
+      requestedRole,
+      organizerApprovalStatus: requestedRole === UserRole.ORGANIZER
+        ? OrganizerApprovalStatus.PENDING
+        : null,
     });
 
     const savedUser = await this.usersRepository.save(newUser);

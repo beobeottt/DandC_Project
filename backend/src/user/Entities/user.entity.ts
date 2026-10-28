@@ -7,6 +7,7 @@ import {
 } from 'typeorm';
 
 import { UserRole } from '../../common/User.enum';
+import { OrganizerApprovalStatus } from '../../common/TournamentMember.enum';
 import { PickleballSkill, PlayingHand, PreferredPosition } from '../../common/player-skill.enum';
 
 @Entity('users')
@@ -26,6 +27,21 @@ export class User {
         default: UserRole.PLAYER,
     })
     role: UserRole;
+
+    @Column({
+        type: 'enum',
+        enum: UserRole,
+        default: UserRole.PLAYER,
+    })
+    requestedRole: UserRole;
+
+    @Column({
+        type: 'enum',
+        enum: OrganizerApprovalStatus,
+        nullable: true,
+        default: null,
+    })
+    organizerApprovalStatus: OrganizerApprovalStatus | null;
 
     @Column({ type: 'varchar', length: 255, select: false })
     passwordHash: string; // Sửa thành camelCase

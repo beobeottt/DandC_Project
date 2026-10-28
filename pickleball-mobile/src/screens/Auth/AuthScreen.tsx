@@ -24,6 +24,7 @@ export const AuthScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [requestedRole, setRequestedRole] = useState<'PLAYER' | 'ORGANIZER'>('PLAYER');
 
   const handleSubmit = async () => {
     if (!email || !password || (!isLogin && !fullName)) {
@@ -57,6 +58,7 @@ export const AuthScreen = () => {
           email, 
           password, 
           fullName,
+          requestedRole,
         });
         
         const accessToken = response.data.access_token || response.data.accessToken;
@@ -66,7 +68,12 @@ export const AuthScreen = () => {
         }
         await AsyncStorage.setItem('access_token', accessToken);
         await setRole(role);
-        Alert.alert('Thành công', 'Đăng ký tài khoản thành công!');
+        Alert.alert(
+          'Đăng ký thành công',
+          requestedRole === 'ORGANIZER'
+            ? 'Tài khoản của bạn đang là VĐV cho đến khi quản trị viên duyệt yêu cầu Ban tổ chức.'
+            : 'Tài khoản vận động viên đã được tạo.',
+        );
         navigation.replace('Home');
       }
 
@@ -105,6 +112,28 @@ export const AuthScreen = () => {
               value={fullName}
               onChangeText={setFullName}
             />
+            <Text className="text-sm font-bold text-textMain mb-2 ml-1 mt-4">Vai trò đăng ký</Text>
+            <View className="flex-row gap-2">
+              {[
+                { value: 'PLAYER' as const, title: 'Vận động viên' },
+                { value: 'ORGANIZER' as const, title: 'Ban tổ chức' },
+              ].map(option => (
+                <TouchableOpacity
+                  key={option.value}
+                  className={`flex-1 rounded-xl border px-3 py-3 ${requestedRole === option.value ? 'border-primary bg-primary/10' : 'border-gray-200 bg-white'}`}
+                  onPress={() => setRequestedRole(option.value)}
+                >
+                  <Text className={`text-center text-xs font-bold ${requestedRole === option.value ? 'text-primary' : 'text-textSub'}`}>
+                    {option.title}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {requestedRole === 'ORGANIZER' && (
+              <Text className="mt-2 text-xs text-textSub">
+                Quyền Ban tổ chức chỉ được bật sau khi admin duyệt. Trọng tài được BTC bổ nhiệm riêng cho từng giải.
+              </Text>
+            )}
           </View>
         )}
 

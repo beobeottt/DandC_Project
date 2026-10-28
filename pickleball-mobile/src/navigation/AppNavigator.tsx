@@ -15,11 +15,16 @@ import { CreateTournamentScreen } from '../screens/Organizer/CreateTournamentScr
 import { OrganizerTournamentsScreen } from '../screens/Organizer/OrganizerTournamentsScreen';
 import { TournamentDetailScreen } from '../screens/Organizer/TournamentDetailScreen';
 import { RefereeMatchesScreen } from '../screens/Organizer/RefereeMatchesScreen';
+import { AdminAccountsScreen } from '../screens/Admin/AdminAccountsScreen';
+import { TournamentResultsScreen } from '../screens/Organizer/TournamentResultsScreen';
+import { PracticeCoachScreen } from '../screens/Organizer/PracticeCoachScreen';
+import { AdminTournamentApprovalsScreen } from '../screens/Admin/AdminTournamentApprovalsScreen';
+import { AdminPlayerRatingsScreen } from '../screens/Admin/AdminPlayerRatingsScreen';
 import { useSession, UserRole } from '../SessionContext';
 
 
 const Stack = createNativeStackNavigator();
-const allRoles: UserRole[] = ['PLAYER', 'ORGANIZER', 'REFEREE'];
+const allRoles: UserRole[] = ['PLAYER', 'ORGANIZER', 'REFEREE', 'ADMIN'];
 const playerOnly: UserRole[] = ['PLAYER'];
 const organizerOnly: UserRole[] = ['ORGANIZER'];
 
@@ -32,17 +37,26 @@ const BottomTabs = ({ role }: { role: UserRole }) => {
     { id: 'PlayerProfile', label: 'Hồ sơ', icon: '👤', routeName: 'PlayerProfile' },
   ];
 
-  const tabs = role === 'PLAYER'
+  const tabs = role === 'ADMIN'
+    ? [
+        sharedTabs[0],
+        { id: 'AdminAccounts', label: 'Quản trị', icon: '🛡️', routeName: 'AdminAccounts' },
+        { id: 'TournamentApprovals', label: 'Duyệt giải', icon: '✅', routeName: 'AdminTournamentApprovals' },
+        { id: 'PlayerRatings', label: 'Điểm trình', icon: '⭐', routeName: 'AdminPlayerRatings' },
+      ]
+    : role === 'PLAYER'
     ? [
         sharedTabs[0],
         { id: 'MatchHistory', label: 'Lịch sử đấu', icon: '📅', routeName: 'MatchHistory' },
         { id: 'TrainingHistory', label: 'Tập luyện', icon: '🏆', routeName: 'TrainingHistory' },
+        { id: 'RefereeMatches', label: 'Trọng tài', icon: '🎾', routeName: 'RefereeMatches' },
         sharedTabs[1],
       ]
     : role === 'ORGANIZER'
       ? [
           sharedTabs[0],
           { id: 'OrganizerTournaments', label: 'Giải của tôi', icon: '🏆', routeName: 'OrganizerTournaments' },
+          { id: 'PracticeCoach', label: 'Practice', icon: '🎯', routeName: 'PracticeCoach' },
           sharedTabs[1],
         ]
       : [
@@ -189,8 +203,20 @@ export const RootNavigator = () => {
       <Stack.Screen name="OrganizerTournaments">
         {() => <RequireRole roles={organizerOnly}><MainTabsWrapper><OrganizerTournamentsScreen /></MainTabsWrapper></RequireRole>}
       </Stack.Screen>
+      <Stack.Screen name="AdminAccounts">
+        {() => <RequireRole roles={['ADMIN']}><MainTabsWrapper><AdminAccountsScreen /></MainTabsWrapper></RequireRole>}
+      </Stack.Screen>
+      <Stack.Screen name="AdminTournamentApprovals">
+        {() => <RequireRole roles={['ADMIN']}><MainTabsWrapper><AdminTournamentApprovalsScreen /></MainTabsWrapper></RequireRole>}
+      </Stack.Screen>
+      <Stack.Screen name="AdminPlayerRatings">
+        {() => <RequireRole roles={['ADMIN']}><MainTabsWrapper><AdminPlayerRatingsScreen /></MainTabsWrapper></RequireRole>}
+      </Stack.Screen>
+      <Stack.Screen name="PracticeCoach">
+        {() => <RequireRole roles={['ORGANIZER']}><MainTabsWrapper><PracticeCoachScreen /></MainTabsWrapper></RequireRole>}
+      </Stack.Screen>
       <Stack.Screen name="RefereeMatches">
-        {() => <RequireRole roles={['REFEREE']}><MainTabsWrapper><RefereeMatchesScreen /></MainTabsWrapper></RequireRole>}
+        {() => <RequireRole roles={['PLAYER', 'REFEREE']}><MainTabsWrapper><RefereeMatchesScreen /></MainTabsWrapper></RequireRole>}
       </Stack.Screen>
 
       {/* Các màn hình chi tiết (Không kèm thanh tab ở dưới) */}
@@ -204,6 +230,9 @@ export const RootNavigator = () => {
       {/* Màn hình Live Score / Chi tiết giải đấu */}
       <Stack.Screen name="TournamentDetail">
         {props => <RequireRole roles={allRoles}><TournamentDetailScreen {...props} /></RequireRole>}
+      </Stack.Screen>
+      <Stack.Screen name="TournamentResults">
+        {props => <RequireRole roles={allRoles}><TournamentResultsScreen {...props} /></RequireRole>}
       </Stack.Screen>
 
     </Stack.Navigator>

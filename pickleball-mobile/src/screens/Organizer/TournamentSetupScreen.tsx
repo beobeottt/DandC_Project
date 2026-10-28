@@ -25,10 +25,32 @@ export const TournamentSetupScreen = ({ route }: any) => {
   const [numMale, setNumMale] = useState('');
   const [numFemale, setNumFemale] = useState('');
   const [loading, setLoading] = useState(false);
+  const [tournament, setTournament] = useState<any>(null);
+  const [eventName, setEventName] = useState('');
+  const [address, setAddress] = useState('');
+  const [startAt, setStartAt] = useState('');
+  const [qualifiersPerGroup, setQualifiersPerGroup] = useState<2 | 3>(2);
+  const [bronzeMatchEnabled, setBronzeMatchEnabled] = useState(false);
 
   useEffect(() => {
     void loadMembers();
+    void loadTournament();
   }, [tournamentId]);
+
+  const loadTournament = async () => {
+    try {
+      const response = await api.get(`/tournament/${tournamentId}`);
+      const item = response.data.tournament;
+      setTournament(item);
+      setEventName(item.name || '');
+      setAddress(item.location || '');
+      setStartAt(item.startAt ? new Date(item.startAt).toISOString().slice(0, 16) : '');
+      setQualifiersPerGroup(item.qualifiersPerGroup === 3 ? 3 : 2);
+      setBronzeMatchEnabled(Boolean(item.bronzeMatchEnabled));
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.response?.data?.message || 'Không thể tải thông tin giải đấu');
+    }
+  };
 
   const loadMembers = async () => {
     try {
@@ -40,6 +62,10 @@ export const TournamentSetupScreen = ({ route }: any) => {
   };
 
   const handleSendInvitations = async () => {
+    if (tournament?.approvalStatus !== 'APPROVED') {
+      Alert.alert('Giải chưa được duyệt', 'Chỉ có thể mời thành viên sau khi admin duyệt giải đấu.');
+      return;
+    }
     if (selectedReferees.length === 0 && selectedPlayers.length === 0) {
       Alert.alert('Chưa có lời mời', 'Thêm email trọng tài hoặc VĐV trước khi gửi.');
       return;
@@ -68,6 +94,10 @@ export const TournamentSetupScreen = ({ route }: any) => {
   };
 
   const handleAddGuest = async () => {
+    if (tournament?.approvalStatus !== 'APPROVED') {
+      Alert.alert('Giải chưa được duyệt', 'Chỉ có thể thêm VĐV sau khi admin duyệt giải đấu.');
+      return;
+    }
     if (!guestName.trim() || !guestPhone.trim()) {
       Alert.alert('Thiếu thông tin', 'Vui lòng nhập họ tên và số điện thoại của vận động viên');
       return;
@@ -90,11 +120,45 @@ export const TournamentSetupScreen = ({ route }: any) => {
   };
 
   const handleApproval = async (memberId: string, status: 'APPROVED' | 'REJECTED') => {
+    if (tournament?.approvalStatus !== 'APPROVED') return;
     try {
       await api.patch(`/tournament/${tournamentId}/members/${memberId}/approval`, { status });
       await loadMembers();
     } catch (error: any) {
       Alert.alert('Lỗi', error.response?.data?.message || 'Không thể cập nhật trạng thái duyệt');
+    }
+  };
+
+  const saveTournamentDetails = async () => {
+    if (!eventName.trim() || !address.trim() || !startAt) {
+      Alert.alert('Thiếu thông tin', 'Nhập tên giải, địa điểm và thời gian hợp lệ.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.patch(`/tournament/${tournamentId}/details`, {
+        name: eventName.trim(),
+        location: address.trim(),
+        startAt: new Date(startAt).toISOString(),
+        qualifiersPerGroup,
+        bronzeMatchEnabled,
+      });
+      await loadTournament();
+      Alert.alert('Đã lưu', 'Thông tin giải đấu đã được cập nhật.');
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.response?.data?.message || 'Không thể cập nhật thông tin giải');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resubmitTournament = async () => {
+    try {
+      await api.post(`/tournament/${tournamentId}/resubmit`);
+      await loadTournament();
+      Alert.alert('Đã gửi lại', 'Giải đấu đang chờ admin duyệt.');
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.response?.data?.message || 'Không thể gửi lại giải để duyệt');
     }
   };
 
@@ -105,13 +169,75 @@ export const TournamentSetupScreen = ({ route }: any) => {
         Mời VĐV/trọng tài, xem người đã đăng ký và duyệt VĐV đủ điều kiện tham gia bốc thăm.
       </Text>
 
+      {tournament && tournament.approvalStatus !== 'APPROVED' && (
+        <View className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <Text className="mb-2 text-sm font-extrabold text-amber-900">
+            {tournament.approvalStatus === 'REJECTED' ? 'Giải bị từ chối' : 'Giải đang chờ admin duyệt'}
+          </Text>
+          {tournament.rejectionReason ? (
+            <Text className="mb-3 text-xs text-red-700">Lý do: {tournament.rejectionReason}</Text>
+          ) : null}
+          <TextInput
+            className="mb-2 rounded-xl border border-amber-200 bg-white px-3 py-3 text-sm"
+            placeholder="Tên giải"
+            value={eventName}
+            onChangeText={setEventName}
+          />
+          <TextInput
+            className="mb-2 rounded-xl border border-amber-200 bg-white px-3 py-3 text-sm"
+            placeholder="Địa điểm"
+            value={address}
+            onChangeText={setAddress}
+          />
+          <TextInput
+            className="mb-3 rounded-xl border border-amber-200 bg-white px-3 py-3 text-sm"
+            placeholder="Thời gian (YYYY-MM-DDTHH:mm)"
+            value={startAt}
+            onChangeText={setStartAt}
+          />
+          {tournament.bracket_Type === 'GROUP_AND_KNOCKOUT' && (
+            <View className="mb-3 rounded-xl border border-amber-200 bg-white p-3">
+              <Text className="mb-2 text-xs font-bold text-gray-800">Số đội đầu bảng vào vòng loại</Text>
+              <View className="mb-3 flex-row gap-2">
+                {([2, 3] as const).map(count => (
+                  <TouchableOpacity
+                    key={count}
+                    className={`flex-1 items-center rounded-lg py-2 ${qualifiersPerGroup === count ? 'bg-indigo-600' : 'bg-gray-100'}`}
+                    onPress={() => setQualifiersPerGroup(count)}
+                  >
+                    <Text className={`text-xs font-bold ${qualifiersPerGroup === count ? 'text-white' : 'text-gray-700'}`}>{count} đội</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity
+                className="flex-row items-center"
+                onPress={() => setBronzeMatchEnabled(current => !current)}
+              >
+                <View className={`mr-2 h-5 w-5 items-center justify-center rounded border ${bronzeMatchEnabled ? 'border-indigo-600 bg-indigo-600' : 'border-gray-400 bg-white'}`}>
+                  <Text className="text-xs font-bold text-white">{bronzeMatchEnabled ? '✓' : ''}</Text>
+                </View>
+                <Text className="text-xs text-gray-700">Tổ chức trận tranh hạng 3</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <TouchableOpacity className="items-center rounded-xl bg-gray-800 py-3" onPress={() => void saveTournamentDetails()}>
+            <Text className="text-xs font-bold text-white">Lưu thông tin giải</Text>
+          </TouchableOpacity>
+          {tournament.approvalStatus === 'REJECTED' && (
+            <TouchableOpacity className="mt-2 items-center rounded-xl bg-indigo-600 py-3" onPress={() => void resubmitTournament()}>
+              <Text className="text-xs font-bold text-white">Gửi lại để admin duyệt</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       <View className="mb-5 rounded-2xl border border-purple-200 bg-purple-50 p-4">
         <Text className="text-base font-extrabold text-purple-900 mb-1">1. Mời trọng tài</Text>
-        <Text className="text-xs text-purple-800 mb-3">Nhập email tài khoản đã được cấp vai trò Trọng tài.</Text>
+        <Text className="text-xs text-purple-800 mb-3">Nhập email tài khoản VĐV; BTC sẽ bổ nhiệm tài khoản đó làm trọng tài riêng cho giải này.</Text>
         <View className="flex-row gap-2">
           <TextInput
             className="flex-1 bg-white rounded-xl px-4 py-3 text-gray-900 text-sm border border-purple-200"
-            placeholder="Email tài khoản trọng tài đã đăng ký"
+            placeholder="Email tài khoản VĐV"
             placeholderTextColor="#9CA3AF"
             value={refereeInput}
             onChangeText={setRefereeInput}
@@ -236,7 +362,7 @@ export const TournamentSetupScreen = ({ route }: any) => {
             <Text className="text-xs text-gray-500 mt-1">
               Duyệt: {member.organizerApprovalStatus === 'APPROVED' ? 'Đã duyệt' : member.organizerApprovalStatus === 'REJECTED' ? 'Từ chối' : 'Chờ BTC duyệt'}
             </Text>
-            {member.invitationStatus === 'ACCEPTED' && member.organizerApprovalStatus !== 'APPROVED' && (
+            {member.role === 'PLAYER' && member.invitationStatus === 'ACCEPTED' && member.organizerApprovalStatus !== 'APPROVED' && (
               <View className="flex-row gap-2 mt-3">
                 <TouchableOpacity className="bg-green-600 px-3 py-2 rounded-lg" onPress={() => handleApproval(member.memberId, 'APPROVED')}>
                   <Text className="text-white text-xs font-bold">Duyệt</Text>

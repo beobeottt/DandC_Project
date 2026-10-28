@@ -9,10 +9,17 @@ import {
   Max, 
   IsArray,
   ArrayMinSize,
-  ValidateNested
+  ValidateNested,
+  IsIn,
+  IsUrl,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CompetitionType, TournamentFormat, TournamentStatus } from '../../common/Tournament.enum';
+import {
+  CompetitionType,
+  TournamentAwardType,
+  TournamentFormat,
+} from '../../common/Tournament.enum';
 import { DrawFormat } from '../../common/Draw.enum';
 
 class FormatDetailDto {
@@ -21,6 +28,7 @@ class FormatDetailDto {
 
   @IsInt()
   @Min(2)
+  @Max(10000)
   maxPlayers: number;
 
   @IsOptional()
@@ -46,6 +54,46 @@ export class CreateTournamentDto {
   @IsDateString()
   startAt: string;
 
+  @IsOptional()
+  @IsDateString()
+  endAt?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  coverImageUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsIn(Object.values(TournamentAwardType), { each: true })
+  awardTypes?: TournamentAwardType[];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(2_000_000_000)
+  feePerPlayer?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(2_000_000_000)
+  championPrizeMoney?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  @IsUrl({ require_tld: false })
+  contactLink?: string;
+
   @IsArray()
   @ArrayMinSize(1, { message: 'Phải cấu hình ít nhất một nội dung thi đấu' })
   @ValidateNested({ each: true })
@@ -59,4 +107,15 @@ export class CreateTournamentDto {
   @IsOptional()
   @IsEnum(DrawFormat)
   drawFormat?: DrawFormat;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsIn([2, 3])
+  qualifiersPerGroup?: number;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  bronzeMatchEnabled?: boolean;
 }

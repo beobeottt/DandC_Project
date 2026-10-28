@@ -8,6 +8,8 @@ export class Match {
     tournamentId: string;
     @Column({ type: 'uuid', nullable: true }) 
     groupId: string | null;
+    @Column({ type: 'varchar', length: 20, default: 'GROUP' })
+    stage: 'GROUP' | 'KNOCKOUT' | 'BRONZE';
     @Column({ type: 'uuid', nullable: true }) 
     teamAId: string | null;
     @Column({ type: 'uuid', nullable: true }) 

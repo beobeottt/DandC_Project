@@ -74,18 +74,25 @@ export const RefereeMatchesScreen = () => {
 
       <Text className="text-lg font-bold text-gray-900 mt-4 mb-3">Giải được phân công</Text>
       {accepted.map(item => (
-        <TouchableOpacity
-          key={item.id}
-          className="bg-white rounded-2xl border border-gray-200 p-4 mb-3"
-          onPress={() => navigation.navigate('TournamentDetail', {
-            tournamentId: item.tournamentId,
-            tournamentName: item.tournament?.name,
-          })}
-        >
+        <View key={item.id} className="bg-white rounded-2xl border border-gray-200 p-4 mb-3">
           <Text className="font-bold text-gray-900">{item.tournament?.name || 'Giải đấu'}</Text>
           <Text className="text-xs text-gray-500 mt-1">{item.tournament?.location}</Text>
-          <Text className="text-indigo-600 text-xs font-bold mt-3">Chọn trận và điều khiển trận ›</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            className="mt-3 rounded-xl bg-indigo-600 py-3"
+            onPress={() => navigation.navigate('TournamentDetail', {
+              tournamentId: item.tournamentId,
+              tournamentName: item.tournament?.name,
+            })}
+          >
+            <Text className="text-center text-xs font-bold text-white">Chọn trận · Cộng/trừ điểm realtime</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="mt-2 rounded-xl bg-gray-100 py-3"
+            onPress={() => navigation.navigate('TournamentResults', { tournamentId: item.tournamentId })}
+          >
+            <Text className="text-center text-xs font-bold text-gray-700">Xem kết quả bốc thăm</Text>
+          </TouchableOpacity>
+        </View>
       ))}
       {pending.length === 0 && accepted.length === 0 && (
         <Text className="text-gray-500">Bạn chưa có lời mời trọng tài nào.</Text>

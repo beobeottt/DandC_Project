@@ -3,11 +3,11 @@ import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { api } from '../../services/api';
-import { useSession } from '../../SessionContext';
+import { isUserRole, useSession } from '../../SessionContext';
 
 export const PlayerProfileScreen = () => {
   const navigation = useNavigation<any>();
-  const { clearSession } = useSession();
+  const { clearSession, setRole } = useSession();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -28,6 +28,9 @@ export const PlayerProfileScreen = () => {
 
       const response = await api.get('/users/profile');
       setUser(response.data);
+      if (isUserRole(response.data?.role)) {
+        await setRole(response.data.role);
+      }
     } catch (error: any) {
       if (error.response?.status === 401) {
         await clearSession();
@@ -87,9 +90,23 @@ export const PlayerProfileScreen = () => {
         <Text className="text-gray-500 font-medium text-sm mb-2">{user?.email || ''}</Text>
         <View className="bg-gray-100 px-3 py-1 rounded-full mb-2">
           <Text className="text-gray-700 font-bold text-xs">
-            Vai trò: {user?.role === 'ORGANIZER' ? 'Ban tổ chức' : user?.role === 'REFEREE' ? 'Trọng tài' : 'Vận động viên'}
+            Vai trò: {user?.role === 'ADMIN' ? 'Quản trị viên' : user?.role === 'ORGANIZER' ? 'Ban tổ chức' : user?.role === 'REFEREE' ? 'Trọng tài' : 'Vận động viên'}
           </Text>
         </View>
+        {user?.requestedRole === 'ORGANIZER' && user?.organizerApprovalStatus === 'PENDING' && (
+          <View className="mb-2 rounded-xl bg-amber-50 px-3 py-2">
+            <Text className="text-center text-xs font-semibold text-amber-800">
+              Yêu cầu quyền Ban tổ chức đang chờ admin duyệt.
+            </Text>
+          </View>
+        )}
+        {user?.requestedRole === 'ORGANIZER' && user?.organizerApprovalStatus === 'REJECTED' && (
+          <View className="mb-2 rounded-xl bg-red-50 px-3 py-2">
+            <Text className="text-center text-xs font-semibold text-red-700">
+              Yêu cầu quyền Ban tổ chức chưa được chấp thuận.
+            </Text>
+          </View>
+        )}
         
         {/* Hiển thị Level */}
         <View className="bg-indigo-100 px-3 py-1 rounded-full border border-indigo-200">
